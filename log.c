@@ -74,14 +74,33 @@ static struct miscdevice bl_log_misc = {
 	.fops = &bl_log_fops,
 };
 
+void log_buf_output(struct bl_log *bl_log, const char* buf, size_t size) {
+    size_t write_size = 0, write_index = 0;
+
+    while (true) {
+        if (bl_log->buf_write_size + size > LOG_BUF_OUTPUT_BUF_SIZE) {
+            write_size = LOG_BUF_OUTPUT_BUF_SIZE - bl_log->buf_write_size;
+            memcpy(bl_log->buff + bl_log->buf_write_size, buf + write_index, write_size);
+            write_index += write_size;
+            size -= write_size;
+            /* reset write index */
+            bl_log->buf_write_size = 0;
+        } else {
+            memcpy(bl_log->buff + bl_log->buf_write_size, buf + write_index, size);
+            bl_log->buf_write_size += size;
+            break;
+        }
+    }
+}
+
 void log_output(const char *fmt, ...)
 {
     const char *fmt_usr = (const char*) fmt;
     uint32_t severity = 0;
+	int log_len = 0;
+	char buf[LOG_LINE_BUF_SIZE] = {0};
     va_list args;
     va_start(args, fmt);
-
-	printk("Enter log_output...\n");
 
     printk("%d %d %d %d\n", fmt_usr[0], fmt_usr[1], DBG_MOD_MAX, DBG_SEV_MIN);
 
@@ -106,7 +125,7 @@ void log_output(const char *fmt, ...)
         else
         {
             // must be severity code
-            //ASSERT_ERR(DBG_SEV_MIN <= prefix && prefix < DBG_SEV_MAX);
+            WARN_ON(DBG_SEV_MIN <= prefix && prefix < DBG_SEV_MAX);
             severity = (uint32_t)(prefix - DBG_SEV_MIN);
 
             // test severity, if filtered returns
@@ -118,8 +137,12 @@ void log_output(const char *fmt, ...)
     }
     while (fmt_usr != fmt + 2);
 
-	vsnprintf(bl_log->buff, LOG_LINE_BUF_SIZE, fmt_usr, args);
-	printk("%s", bl_log->buff);
+
+	log_len = vsnprintf(buf, LOG_LINE_BUF_SIZE, fmt_usr, args);
+	if(log_len > LOG_LINE_BUF_SIZE)
+		buf[LOG_LINE_BUF_SIZE-1] = "\n";
+	log_buf_output(bl_log, buf, log_len);
+	//printk("%s", bl_log->buff);
 
     va_end(args);
 }
@@ -127,6 +150,7 @@ void log_output(const char *fmt, ...)
 static int __init bl_log_init(void)
 {
 	int ret = 0;
+	int i;
 
 	bl_log = kzalloc(sizeof(struct bl_log), GFP_KERNEL);
 	if(!bl_log) {
@@ -140,7 +164,9 @@ static int __init bl_log_init(void)
 		goto err_buff;
 	}
 
-	log("%d, ohoh-just for test\n", ret);
+	for(i=0; i<10000; i++) {
+		log("%d, ohoh1-just for test\n", i);
+	}
 
 	ret = misc_register(&bl_log_misc);
 	if (unlikely(ret)) {

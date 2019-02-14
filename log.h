@@ -6,10 +6,10 @@
 #ifndef __LOG_H__
 #define __LOG_H__
 
-
+#define LOG_NEWLINE_SIGN                    "\n"
 /* buffer size for every line's log */
-#define LOG_LINE_BUF_SIZE                   1024
-#define LOG_BUF_OUTPUT_BUF_SIZE             (LOG_LINE_BUF_SIZE*4*32)
+#define LOG_LINE_BUF_SIZE                   256
+#define LOG_BUF_OUTPUT_BUF_SIZE             (LOG_LINE_BUF_SIZE*4*4*32)
 
 #ifdef DBG
 unsigned long bl_filter_severity = 0xffffffff;
