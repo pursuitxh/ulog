@@ -1,7 +1,11 @@
+CONFIG_DEBUG ?= y
+ccflags-$(CONFIG_DEBUG) += -DDBG
+
 ifneq ($(KERNELRELEASE),)
 	obj-m := log.o
 else
 	KERNELDIR ?= /home/sw/Workspace/packages/linux-4.10
+
 
 default:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules

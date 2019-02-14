@@ -74,20 +74,59 @@ static struct miscdevice bl_log_misc = {
 	.fops = &bl_log_fops,
 };
 
-static void log_output(char *fmt, ...) {
-	va_list args;
-	int len;
+void log_output(const char *fmt, ...)
+{
+    const char *fmt_usr = (const char*) fmt;
+    uint32_t severity = 0;
+    va_list args;
+    va_start(args, fmt);
 
-	va_start(args, fmt);
-	//len = vsnprintf(bl_log->buff, 256, fmt, args);
-	vsnprintf(bl_log->buff, LOG_LINE_BUF_SIZE, fmt, args);
-	va_end(args);
+	printk("Enter log_output...\n");
+
+    printk("%d %d %d %d\n", fmt_usr[0], fmt_usr[1], DBG_MOD_MAX, DBG_SEV_MIN);
+
+    // permit all the debug message is permited
+    bl_filter_severity = DBG_SEV_MAX;
+
+    if (bl_filter_severity == 0) return;
+
+    do
+    {
+        // Get the prefix
+        unsigned char prefix = ((unsigned char)*fmt_usr) & 0xFF;
+
+        // ASCII char, start of the user string
+        if (prefix < DBG_MOD_MIN) break;
+
+        if (prefix < DBG_MOD_MAX)
+        {
+            // test module, if filtered returns
+            if (~bl_filter_module & CO_BIT(prefix - DBG_MOD_MIN)) return;
+        }
+        else
+        {
+            // must be severity code
+            //ASSERT_ERR(DBG_SEV_MIN <= prefix && prefix < DBG_SEV_MAX);
+            severity = (uint32_t)(prefix - DBG_SEV_MIN);
+
+            // test severity, if filtered returns
+            if (bl_filter_severity <= severity) return;
+        }
+
+        // Check first and second char
+        fmt_usr++;
+    }
+    while (fmt_usr != fmt + 2);
+
+	vsnprintf(bl_log->buff, LOG_LINE_BUF_SIZE, fmt_usr, args);
+	printk("%s", bl_log->buff);
+
+    va_end(args);
 }
 
 static int __init bl_log_init(void)
 {
 	int ret = 0;
-
 
 	bl_log = kzalloc(sizeof(struct bl_log), GFP_KERNEL);
 	if(!bl_log) {
@@ -101,9 +140,7 @@ static int __init bl_log_init(void)
 		goto err_buff;
 	}
 
-	log_output("%d, just for test\n", ret);
-
-	printk("%s\n", bl_log->buff);
+	log("%d, ohoh-just for test\n", ret);
 
 	ret = misc_register(&bl_log_misc);
 	if (unlikely(ret)) {
