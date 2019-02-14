@@ -17,7 +17,7 @@ int main(int argc, const char *argv[])
 	char *addr = NULL;
 	int *brk;
 
-	fd = open("/dev/remap_pfn", O_RDWR);
+	fd = open("/dev/bl_log", O_RDWR);
 	if (fd < 0) {
 		perror("open failed\n");
 		exit(-1);
@@ -28,12 +28,11 @@ int main(int argc, const char *argv[])
 		perror("mmap failed\n");
 		exit(-1);
 	}
-	memset(addr, 0x0, BUF_SIZE);
+	//memset(addr, 0x0, BUF_SIZE);
 
-	printf("Clear Finished\n");
+	printf("%s\n", addr);
 
-	while(1)
-		sleep(1);
+	close(fd);
 
 	return 0;
 }

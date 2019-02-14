@@ -6,13 +6,15 @@
 #include <linux/fs.h>
 #include <linux/slab.h>
 
-#define BUF_SIZE (32*PAGE_SIZE)
+#include "log.h"
 
-static void *kbuff;
+struct bl_log *bl_log = NULL;
 
-static int remap_pfn_open(struct inode *inode, struct file *file)
+static int bl_log_open(struct inode *inode, struct file *file)
 {
+
 	struct mm_struct *mm = current->mm;
+	file->private_data = bl_log;
 
 	printk("client: %s (%d)\n", current->comm, current->pid);
 	printk("code  section: [0x%lx   0x%lx]\n", mm->start_code, mm->end_code);
@@ -26,11 +28,23 @@ static int remap_pfn_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static int remap_pfn_mmap(struct file *file, struct vm_area_struct *vma)
+static int bl_log_release(struct inode *inode, struct file *file)
 {
+	
+	struct bl_log *bl_log = file->private_data;
+
+    kfree(bl_log->buff);	
+	kfree(bl_log);
+
+	return 0;
+}
+
+static int bl_log_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	struct bl_log *bl_log = file->private_data;
 	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
-	unsigned long pfn_start = (virt_to_phys(kbuff) >> PAGE_SHIFT) + vma->vm_pgoff;
-	unsigned long virt_start = (unsigned long)kbuff + offset;
+	unsigned long pfn_start = (virt_to_phys(bl_log->buff) >> PAGE_SHIFT) + vma->vm_pgoff;
+	unsigned long virt_start = (unsigned long)bl_log->buff + offset;
 	unsigned long size = vma->vm_end - vma->vm_start;
 	int ret = 0;
 
@@ -47,46 +61,72 @@ static int remap_pfn_mmap(struct file *file, struct vm_area_struct *vma)
 	return ret;
 }
 
-static const struct file_operations remap_pfn_fops = {
-	.owner = THIS_MODULE,
-	.open = remap_pfn_open,
-	.mmap = remap_pfn_mmap,
+static const struct file_operations bl_log_fops = {
+	.owner   = THIS_MODULE,
+	.open 	 = bl_log_open,
+	.release = bl_log_release,
+	.mmap 	 = bl_log_mmap,
 };
 
-static struct miscdevice remap_pfn_misc = {
+static struct miscdevice bl_log_misc = {
 	.minor = MISC_DYNAMIC_MINOR,
-	.name = "remap_pfn",
-	.fops = &remap_pfn_fops,
+	.name = "bl_log",
+	.fops = &bl_log_fops,
 };
 
-static int __init remap_pfn_init(void)
+static void log_output(char *fmt, ...) {
+	va_list args;
+	int len;
+
+	va_start(args, fmt);
+	//len = vsnprintf(bl_log->buff, 256, fmt, args);
+	vsnprintf(bl_log->buff, LOG_LINE_BUF_SIZE, fmt, args);
+	va_end(args);
+}
+
+static int __init bl_log_init(void)
 {
 	int ret = 0;
 
-	kbuff = kzalloc(BUF_SIZE, GFP_KERNEL);
-	if (!kbuff) {
+
+	bl_log = kzalloc(sizeof(struct bl_log), GFP_KERNEL);
+	if(!bl_log) {
 		ret = -ENOMEM;
-		goto err;
+		goto err_bl_log;
 	}
 
-	ret = misc_register(&remap_pfn_misc);
+	bl_log->buff = kzalloc(LOG_BUF_OUTPUT_BUF_SIZE, GFP_KERNEL);
+	if (!bl_log->buff) {
+		ret = -ENOMEM;
+		goto err_buff;
+	}
+
+	log_output("%d, just for test\n", ret);
+
+	printk("%s\n", bl_log->buff);
+
+	ret = misc_register(&bl_log_misc);
 	if (unlikely(ret)) {
 		pr_err("failed to register misc device!\n");
-		goto err;
+		goto err_register;
 	}
 
 	return 0;
 
-err:
+err_register:
+	kfree(bl_log->buff);
+err_buff:
+	kfree(bl_log);
+err_bl_log:
 	return ret;
+
 }
 
-static void __exit remap_pfn_exit(void)
+static void __exit bl_log_exit(void)
 {
-	misc_deregister(&remap_pfn_misc);
-	kfree(kbuff);
+	misc_deregister(&bl_log_misc);
 }
 
-module_init(remap_pfn_init);
-module_exit(remap_pfn_exit);
+module_init(bl_log_init);
+module_exit(bl_log_exit);
 MODULE_LICENSE("GPL");
