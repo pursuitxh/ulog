@@ -33,6 +33,7 @@ static int bl_log_release(struct inode *inode, struct file *file)
 	
 	struct bl_log *bl_log = file->private_data;
 
+	ClearPageReserved(virt_to_page(bl_log->buff));
     kfree(bl_log->buff);	
 	kfree(bl_log);
 
@@ -164,8 +165,10 @@ static int __init bl_log_init(void)
 		goto err_buff;
 	}
 
-	for(i=0; i<10000; i++) {
-		log("%d, ohoh1-just for test\n", i);
+	SetPageReserved(virt_to_page(bl_log->buff));
+
+	for(i=0; i<10; i++) {
+		log("[%d]-just for test\n", i);
 	}
 
 	ret = misc_register(&bl_log_misc);

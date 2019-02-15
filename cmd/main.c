@@ -120,7 +120,7 @@ static int bl_log_version(int argc, char *argv[])
 
 static int run_command(const struct command *cmd, int argc, char *argv[])
 {
-	printf("running command: `%s'", cmd->name);
+	printf("running command: `%s'\n", cmd->name);
 	return cmd->fn(argc, argv);
 }
 
